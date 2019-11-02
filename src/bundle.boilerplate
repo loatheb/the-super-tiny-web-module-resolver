@@ -1,0 +1,15 @@
+(function () {
+    var cache = {};
+    var moduleList = [
+        /* code-str-template */
+    ];
+    var require = function (id) {
+        if (cache.hasOwnProperty(id)) return cache[id];
+        var module = {exports: {}};
+        var func = moduleList[id];
+        func(require, module, module.exports);
+        cache[id] = module.exports;
+        return cache[id];
+    }
+    require(moduleList.length - 1);
+})();
