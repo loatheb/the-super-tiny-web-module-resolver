@@ -1,29 +1,46 @@
 const fs = require('fs');
 const path = require('path');
-const config = require(path.resolve(__dirname, 'packer.config.js'));
+
+const root = path.dirname(require.main.paths[1]);
+const config = require(path.resolve(root, 'packer.config.js'));
 
 const funcWrapper = ['function (require, module, exports) {', '}'];
-const modulePathIdMap = {};
-const moduleList = [];
 
-deepTravel(path.resolve(__dirname, config.base || '', config.entry || 'index.js'), moduleList);
+main(config);
 
-fs.writeFileSync(
-    path.resolve(__dirname, config.base || '', config.output || 'index.bundle.js'),
-    fs.readFileSync('bundle.boilerplate', 'utf-8')
-        .replace('/* code-str-template */', moduleList.join(','))
-);
+function main(config) {
+    if (Array.isArray(config)) return config.map(main);
 
-function deepTravel(currentModuleAbsolutePath, moduleList) {
+    const modulePathIdMap = {};
+    const moduleList = [];
+    deepTravel(path.resolve(root, config.base || '', config.entry || 'index.js'), moduleList, modulePathIdMap);
+
+    fs.writeFileSync(
+        path.resolve(root, config.base || '', config.output || 'index.bundle.js'),
+        fs.readFileSync(path.resolve(__dirname, 'bundle.boilerplate'), 'utf-8')
+            .replace('/* code-str-template */', moduleList.join(','))
+    );
+}
+
+function getFilePath(modulePath) {
+    return [
+        modulePath,
+        `${modulePath}.js`,
+        `${modulePath}.json`,
+        `${modulePath}.node`,
+    ].find(fs.existsSync);
+}
+
+function deepTravel(currentModuleAbsolutePath, moduleList, modulePathIdMap) {
     const reg = /require\(["'](.+?)["']\)/g;
-    const currentModuleContent = fs.readFileSync(currentModuleAbsolutePath, 'utf-8');
+    const currentModuleContent = fs.readFileSync(getFilePath(currentModuleAbsolutePath), 'utf-8');
     let currentModuleReplacedContent = currentModuleContent;
     let result = null;
     while ((result = reg.exec(currentModuleContent)) !== null) {
         const [, modulePath] = result;
-        const childModuleAbsolutePath = path.resolve(path.dirname(currentModuleAbsolutePath), modulePath);
+        const childModuleAbsolutePath = path.resolve(path.dirname(getFilePath(currentModuleAbsolutePath)), modulePath);
         if (modulePathIdMap.hasOwnProperty(childModuleAbsolutePath)) continue;
-        deepTravel(childModuleAbsolutePath, moduleList);
+        deepTravel(childModuleAbsolutePath, moduleList, modulePathIdMap);
         currentModuleReplacedContent = currentModuleContent.replace(new RegExp(modulePath, 'g'), modulePathIdMap[childModuleAbsolutePath]);
     }
     const funcStr = `${funcWrapper[0]}\n${currentModuleReplacedContent}\n${funcWrapper[1]}`;

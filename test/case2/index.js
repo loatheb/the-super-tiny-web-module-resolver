@@ -1,2 +1,2 @@
-const func = require('./a.js');
+const func = require('./a');
 func();
