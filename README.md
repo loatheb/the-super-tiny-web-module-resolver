@@ -1,5 +1,10 @@
 # The Super Tiny Web Module Resolver
-simple js bundler be written in 50 lines of code.
+simple js bundler written in 50 lines of code.
+
+## feature
+
+- [x] bundle commonjs module
+- [x] dynamic import/require.ensure
 
 ## config
 
@@ -25,7 +30,7 @@ module.exports = [{
 }];
 ```
 
-## use
+## usage
 
 ```shell
 ./bin/packer
