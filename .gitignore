@@ -63,3 +63,7 @@ typings/
 .DS_Store
 
 *.bundle.js
+chunk_*.js
+chunk/*
+test.js
+index.html

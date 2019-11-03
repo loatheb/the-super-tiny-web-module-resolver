@@ -7,5 +7,8 @@ module.exports = [
     },
     {
         base: './test/case3'
+    },
+    {
+        base: './test/case4'
     }
 ]
