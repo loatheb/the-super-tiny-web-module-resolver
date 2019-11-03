@@ -14,38 +14,40 @@
         return cache[id];
     };
 
-    window["__dynamicRequire"] = function __dynamicRequire(chunkId, func) {
-        var chunkCache = cache[chunkId];
-        var resolve = chunkCache[0];
-        var module = {exports: {}};
-        func(require, module, module.exports);
-        cache[chunkId] = module.exports;
-        resolve(cache[chunkId]);
-    };
+    if (/* dynamic-import-status */) {
+        window["__dynamicRequire"] = function __dynamicRequire(chunkId, func) {
+            var chunkCache = cache[chunkId];
+            var resolve = chunkCache[0];
+            var module = {exports: {}};
+            func(require, module, module.exports);
+            cache[chunkId] = module.exports;
+            resolve(cache[chunkId]);
+        };
 
-    require.ensure = function requireEnsure(chunkId) {
-        var chunkStatusSymbol = '__isPending';
-        var chunkPromise = cache[chunkId];
+        require.ensure = function requireEnsure(chunkId) {
+            var chunkStatusSymbol = '__isPending';
+            var chunkPromise = cache[chunkId];
 
-        if (Array.isArray(chunkPromise) && chunkPromise[chunkStatusSymbol]) {
-            return chunkPromise[1];
-        }
+            if (chunkPromise === void 0) {
+                var $script = document.createElement("script");
+                $script.src = __runtimeConfig.public + chunkId + ".js";
+                document.body.appendChild($script);
+                var promise = new Promise(function(resolve) {
+                    var chunkCache = [resolve];
+                    chunkCache[chunkStatusSymbol] = true;
+                    cache[chunkId] = chunkCache;
+                });
+                cache[chunkId].push(promise);
+                return promise;
+            }
 
-        if (chunkPromise === void 0) {
-            var $script = document.createElement("script");
-            $script.src = __runtimeConfig.public + chunkId + ".js";
-            document.body.appendChild($script);
-            var promise = new Promise(function(resolve) {
-                var chunkCache = [resolve];
-                chunkCache[chunkStatusSymbol] = true;
-                cache[chunkId] = chunkCache;
-            });
-            cache[chunkId].push(promise);
-            return promise;
-        }
+            if (chunkPromise[chunkStatusSymbol]) {
+                return chunkPromise[1];
+            }
 
-        return chunkPromise;
-    };
+            return chunkPromise;
+        };
+    }
 
     require(moduleList.length - 1);
 })();

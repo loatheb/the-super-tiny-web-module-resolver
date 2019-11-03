@@ -10,5 +10,8 @@ module.exports = [
     },
     {
         base: './test/case4'
+    },
+    {
+        base: './test/case5'
     }
 ]
