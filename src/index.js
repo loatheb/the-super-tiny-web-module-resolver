@@ -47,31 +47,31 @@ function main(config) {
     );
 }
 
-function deepTravel(currentModuleAbsolutePath, moduleList, modulePathIdMap, chunkModuleList, chunkModulePathIdMap, isChunk, childModules = []) {
+function deepTravel(fullPath, moduleList, modulePathIdMap, chunkModuleList, chunkModulePathIdMap, isChunk, childModules = []) {
     const modulePathMatcher = /require(\.ensure)?\(["`'](.+?)["`']\)/g;
-    const currentModuleContent = readFileSync(getFilePath(currentModuleAbsolutePath), 'utf-8');
-    let currentModuleReplacedContent = currentModuleContent;
+    const moduleText = readFileSync(getFilePath(fullPath), 'utf-8');
+    let moduleContent = moduleText;
     let match = null;
-    while ((match = modulePathMatcher.exec(currentModuleContent)) !== null) {
+    while ((match = modulePathMatcher.exec(moduleText)) !== null) {
         const [, isDynamicModule, modulePath] = match;
-        const childModuleAbsolutePath = resolve(dirname(getFilePath(currentModuleAbsolutePath)), modulePath);
+        const childModuleAbsolutePath = resolve(dirname(getFilePath(fullPath)), modulePath);
         if ((isDynamicModule ? chunkModulePathIdMap : modulePathIdMap).hasOwnProperty(childModuleAbsolutePath)) continue;
         childModules.push(modulePath);
         deepTravel(childModuleAbsolutePath, moduleList, modulePathIdMap, chunkModuleList, chunkModulePathIdMap, !!isDynamicModule);
         childModules.forEach(childModule => {
-            currentModuleReplacedContent = currentModuleReplacedContent.replace(
+            moduleContent = moduleContent.replace(
                 new RegExp(childModule, 'g'),
                 isDynamicModule ? `chunk_${chunkModulePathIdMap[childModuleAbsolutePath]}` : modulePathIdMap[childModuleAbsolutePath]
             );
         });
     }
-    const funcStr = `${funcWrapper[0]}\n${currentModuleReplacedContent}\n${funcWrapper[1]}`;
-    if (!isChunk) {
-        moduleList.push(funcStr);
-        modulePathIdMap[currentModuleAbsolutePath] = moduleList.length - 1;
-    }
-    else {
-        chunkModuleList.push(funcStr);
-        chunkModulePathIdMap[currentModuleAbsolutePath] = chunkModuleList.length - 1;
-    }
+    const funcStr = `${funcWrapper[0]}\n${moduleContent}\n${funcWrapper[1]}`;
+    isChunk 
+        ? cacheModule(chunkModuleList, chunkModulePathIdMap, funcStr, fullPath)
+        : cacheModule(moduleList, modulePathIdMap, funcStr, fullPath);
+}
+
+function cacheModule(list, map, listVal, mapKey) {
+    list.push(listVal);
+    map[mapKey] = list.length - 1;
 }
