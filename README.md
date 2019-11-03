@@ -1,5 +1,7 @@
 # The Super Tiny Web Module Resolver
-simple js bundler written in 50 lines of code.
+Simple js bundler written in <del>50</del>100 lines of code.
+
+Also, before adding dynamic require support, it's just under 50 lines. (:
 
 ## feature
 
