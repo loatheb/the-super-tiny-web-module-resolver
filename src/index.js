@@ -1,10 +1,11 @@
-const {existsSync, writeFileSync, readFileSync, mkdirSync} = require('fs');
+const {existsSync, writeFileSync, readFileSync} = require('fs');
 const {dirname, resolve} = require('path');
 
 const root = dirname(require.main.paths[1]);
 
 const funcWrapper = ['function (require, module, exports) {', '}'];
 const getFilePath = modulePath => [modulePath, `${modulePath}.js`].find(existsSync);
+const dummy = args => args;
 
 main(require(resolve(root, 'packer.config')));
 
@@ -21,10 +22,11 @@ function main(config) {
 
     const modulePathIdMap = {};
     const moduleList = [];
+    const moduleDepMapList = [];
     const chunkModuleList = [];
     const chunkModulePathIdMap = {};
 
-    deepTravel(resolve(root, bundleConfig.base, bundleConfig.entry), moduleList, modulePathIdMap, chunkModuleList, chunkModulePathIdMap);
+    deepTravel(resolve(root, bundleConfig.base, bundleConfig.entry), moduleList, moduleDepMapList, modulePathIdMap, chunkModuleList, chunkModulePathIdMap);
     chunkModuleList.forEach((chunk, id) => {
         const dynamicTemplate = readFileSync(resolve(__dirname, 'chunk.boilerplate'), 'utf-8');
 
@@ -42,36 +44,43 @@ function main(config) {
         readFileSync(resolve(__dirname, 'bundle.boilerplate'), 'utf-8')
             .replace('/* dynamic-import-status */', !!chunkModuleList.length)
             .replace('/* runtime-config */', JSON.stringify(bundleConfig))
-            .replace('/* code-str-template */', moduleList.join(',')),
+            .replace('/* module-list-template */', moduleList.join(','))
+            .replace('/* module-dep-map-list-template */', moduleDepMapList.map(item => JSON.stringify(item)).join(',')),
         'utf-8'
     );
 }
 
-function deepTravel(fullPath, moduleList, modulePathIdMap, chunkModuleList, chunkModulePathIdMap, isChunk, childModules = []) {
+function deepTravel(fullPath, moduleList, moduleDepMapList, modulePathIdMap, chunkModuleList, chunkModulePathIdMap, isChunk, lifeCycle = {}) {
+    const {beforeModuleParsing = dummy} = lifeCycle;
     const modulePathMatcher = /require(\.ensure)?\(["`'](.+?)["`']\)/g;
-    const moduleText = readFileSync(getFilePath(fullPath), 'utf-8');
+    const moduleText = beforeModuleParsing(readFileSync(getFilePath(fullPath), 'utf-8'));
+    const childModules = [];
+    const moduleDepMap = {};
     let moduleContent = moduleText;
     let match = null;
     while ((match = modulePathMatcher.exec(moduleText)) !== null) {
         const [, isDynamicModule, modulePath] = match;
         const childModuleAbsolutePath = resolve(dirname(getFilePath(fullPath)), modulePath);
-        if ((isDynamicModule ? chunkModulePathIdMap : modulePathIdMap).hasOwnProperty(childModuleAbsolutePath)) continue;
+        if ((isDynamicModule ? chunkModulePathIdMap : modulePathIdMap).hasOwnProperty(childModuleAbsolutePath)) {
+            moduleDepMap[modulePath] = isDynamicModule ? getChunkRuntimePath(chunkModulePathIdMap, childModuleAbsolutePath) : modulePathIdMap[childModuleAbsolutePath];
+            continue;
+        };
         childModules.push(modulePath);
-        deepTravel(childModuleAbsolutePath, moduleList, modulePathIdMap, chunkModuleList, chunkModulePathIdMap, !!isDynamicModule);
-        childModules.forEach(childModule => {
-            moduleContent = moduleContent.replace(
-                new RegExp(childModule, 'g'),
-                isDynamicModule ? `chunk_${chunkModulePathIdMap[childModuleAbsolutePath]}` : modulePathIdMap[childModuleAbsolutePath]
-            );
-        });
+        deepTravel(childModuleAbsolutePath, moduleList, moduleDepMapList, modulePathIdMap, chunkModuleList, chunkModulePathIdMap, !!isDynamicModule);
+        moduleDepMap[modulePath] = isDynamicModule ? getChunkRuntimePath(chunkModulePathIdMap, childModuleAbsolutePath) : modulePathIdMap[childModuleAbsolutePath];
     }
     const funcStr = `${funcWrapper[0]}\n${moduleContent}\n${funcWrapper[1]}`;
-    isChunk 
+    isChunk
         ? cacheModule(chunkModuleList, chunkModulePathIdMap, funcStr, fullPath)
         : cacheModule(moduleList, modulePathIdMap, funcStr, fullPath);
+    !isChunk && moduleDepMapList.push(moduleDepMap);
 }
 
 function cacheModule(list, map, listVal, mapKey) {
     list.push(listVal);
     map[mapKey] = list.length - 1;
+}
+
+function getChunkRuntimePath(chunkModulePathIdMap, childModuleAbsolutePath) {
+    return `chunk_${chunkModulePathIdMap[childModuleAbsolutePath]}`
 }
