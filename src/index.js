@@ -1,10 +1,10 @@
 const {existsSync, writeFileSync, readFileSync} = require('fs');
-const {dirname, resolve} = require('path');
+const {dirname, resolve, basename, extname} = require('path');
 
 const root = dirname(require.main.paths[1]);
 
 const funcWrapper = ['function (require, module, exports) {', '}'];
-const getFilePath = modulePath => [modulePath, `${modulePath}.js`].find(existsSync);
+const getFilePath = modulePath => [modulePath, `${modulePath}.js`, `${modulePath}/index.js`].find(existsSync);
 const dummy = args => args;
 
 main(require(resolve(root, 'packer.config')));
@@ -12,10 +12,15 @@ main(require(resolve(root, 'packer.config')));
 function main(config) {
     if (Array.isArray(config)) return config.map(main);
 
+    if (Array.isArray(config.entry)) return config.entry.map(entry => main({...config, entry, name: entry}));
+
+    if (typeof config.entry === 'object') return Object.entries(config.entry).map(([name, entry]) => main({...config, entry, name}));
+
     const defaultConfig = {
-        base: root, 
-        entry: 'index', 
-        output: 'index.bundle.js', 
+        base: root,
+        name: 'index',
+        entry: 'index',
+        output: '[name].bundle.js',
         public: (config.base || config.output) ? resolve(config.base || '', dirname(config.output || '')).replace(root, '') + '/' : '/'
     };
     const bundleConfig = Object.assign({}, defaultConfig, config);
@@ -40,7 +45,7 @@ function main(config) {
     });
 
     return writeFileSync(
-        resolve(root, bundleConfig.base, bundleConfig.output),
+        resolve(root, bundleConfig.base, bundleConfig.output.replace('[name]', config.name.replace(extname(config.name), ''))),
         readFileSync(resolve(__dirname, 'bundle.boilerplate'), 'utf-8')
             .replace('/* dynamic-import-status */', !!chunkModuleList.length)
             .replace('/* runtime-config */', JSON.stringify(bundleConfig))
