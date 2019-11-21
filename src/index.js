@@ -1,5 +1,6 @@
-const {existsSync, writeFileSync, readFileSync} = require('fs');
+const {existsSync, writeFileSync, readFileSync, watch} = require('fs');
 const {dirname, resolve, basename, extname} = require('path');
+const net = require('net');
 
 const root = dirname(require.main.paths[1]);
 
@@ -44,8 +45,8 @@ function main(config) {
         );
     });
 
-    return writeFileSync(
-        resolve(root, bundleConfig.base, bundleConfig.output.replace('[name]', config.name.replace(extname(config.name), ''))),
+    writeFileSync(
+        resolve(root, bundleConfig.base, bundleConfig.output.replace('[name]', bundleConfig.name.replace(extname(bundleConfig.name), ''))),
         readFileSync(resolve(__dirname, 'bundle.boilerplate'), 'utf-8')
             .replace('/* dynamic-import-status */', !!chunkModuleList.length)
             .replace('/* runtime-config */', JSON.stringify(bundleConfig))
@@ -53,6 +54,8 @@ function main(config) {
             .replace('/* module-dep-map-list-template */', moduleDepMapList.map(item => JSON.stringify(item)).join(',')),
         'utf-8'
     );
+
+    watch(bundleConfig.base, {encoding: 'utf-8'}, eventType => eventType === 'change' && main(bundleConfig));
 }
 
 function deepTravel(fullPath, moduleList, moduleDepMapList, modulePathIdMap, chunkModuleList, chunkModulePathIdMap, isChunk, lifeCycle = {}) {
@@ -89,3 +92,5 @@ function cacheModule(list, map, listVal, mapKey) {
 function getChunkRuntimePath(chunkModulePathIdMap, childModuleAbsolutePath) {
     return `chunk_${chunkModulePathIdMap[childModuleAbsolutePath]}`
 }
+
+module.exports = main;

@@ -67,4 +67,15 @@
     }
 
     require(moduleList.length - 1);
+
+
+    const poller = fetch('/* hot-module-reload-params */')
+        .then(resp => resp.json())
+        .then(result => {
+            moduleList = result.moduleList;
+            moduleDepMapList = result.moduleDepMapList;
+            cache = {};
+        });
+    setInterval(poller, 1000);
+
 })(this);
